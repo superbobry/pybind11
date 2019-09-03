@@ -156,8 +156,15 @@ protected:
             using Guard = extract_guard_t<Extra...>;
 
             /* Perform the function call */
-            handle result = cast_out::cast(
-                std::move(args_converter).template call<Return, Guard>(cap->f), policy, call.parent);
+            handle result;
+            try {
+                result = cast_out::cast(
+                    std::move(args_converter).template call<Return, Guard>(cap->f),
+                    policy,
+                    call.parent);
+            } catch (reference_cast_error &) {
+              return PYBIND11_TRY_NEXT_OVERLOAD;
+            }
 
             /* Invoke call policy post-call hook */
             process_attributes<Extra...>::postcall(call, result);
@@ -619,11 +626,9 @@ protected:
                 }
 
                 // 6. Call the function.
-                try {
+                {
                     loader_life_support guard{};
                     result = func.impl(call);
-                } catch (reference_cast_error &) {
-                    result = PYBIND11_TRY_NEXT_OVERLOAD;
                 }
 
                 if (result.ptr() != PYBIND11_TRY_NEXT_OVERLOAD)
@@ -648,11 +653,9 @@ protected:
             if (overloaded && !second_pass.empty() && result.ptr() == PYBIND11_TRY_NEXT_OVERLOAD) {
                 // The no-conversion pass finished without success, try again with conversion allowed
                 for (auto &call : second_pass) {
-                    try {
+                    {
                         loader_life_support guard{};
                         result = call.func.impl(call);
-                    } catch (reference_cast_error &) {
-                        result = PYBIND11_TRY_NEXT_OVERLOAD;
                     }
 
                     if (result.ptr() != PYBIND11_TRY_NEXT_OVERLOAD) {
